@@ -114,3 +114,20 @@ sudo docker run --rm hello-world
 ```
 
 ### ÉTAPE 2 : SEGMENTATION RÉSEAU (FRONTEND / BACKEND)
+
+Pourquoi segmenter ?
+
+- 🛡️ Principe du moindre privilège : la DB n'a pas besoin d'être accessible depuis l'extérieur
+- 🔒 Limitation du mouvement latéral : si le web est compromis, la DB n'est pas directement exposée
+
+```bash
+# Crée le réseau frontend (exposition Web)
+sudo docker network create --driver bridge net-frontend
+
+# Crée le réseau backend (réseau interne pour la base)
+sudo docker network create --driver bridge net-backend
+
+# Vérifie que les deux réseaux existent
+sudo docker network ls | grep -E "net-frontend|net-backend"
+# Attendu : les deux réseaux sont listés
+```
