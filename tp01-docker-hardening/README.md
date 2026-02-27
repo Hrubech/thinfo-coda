@@ -1,32 +1,37 @@
-# TP01 — DURCISSEMENT & DÉPLOIEMENT D’UNE ARCHITECTURE CONTENEURISÉE (DOCKER)
+# TP01 — DÉPLOIEMENT & DURCISSEMENT D’UNE ARCHITECTURE CONTENEURISÉE (DOCKER)
     
-**Objectif :** Déployer une architecture Web + DB sécurisée en appliquant les bonnes pratiques DevSecOps.
-**Environnement cible :** Debian 13 (Trixie) à jour
-**Niveau :** Master 1 Cybersécurité - CODA Orléans
+**Objectif :** Déployer une architecture Web + DB sécurisée en appliquant les bonnes pratiques DevSecOps.  
+**Environnement cible :** Debian 13 (Trixie) à jour  
+**Niveau :** Master 1 Cybersécurité - CODA Orléans  
 **Durée estimée :** 2h30
 
-## 🎯 Objectifs pédagogiques
+## 🎯 OBJECTIF GLOBAL DU TP
 
-À la fin de ce TP, vous serez capable de :
-- Installer Docker de manière sécurisée (chaîne de confiance)
-- Créer une segmentation réseau stricte (frontend/backend)
-- Construire une image Docker durcie (non-root, alpine, multi-stage)
-- Scanner les vulnérabilités avec Trivy
-- Appliquer le runtime hardening (read-only, capabilities, limites)
-- Prouver l'isolation réseau par des tests concrets
-- Gérer les secrets de manière sécurisée
+Déployer une architecture Web + Base de données en appliquant :
+- Installeation Docker via dépôt officiel (chaîne de confiance)
+- Segmentation réseau Frontend / backend
+- Image Docker (Web) durcie (non-root + base légère + multi-stage + port non privilégié)
+- Audit vulnérabilités avec Trivy (HIGH/CRITICAL)
+- Runtime hardening (read-only, no-new-privileges, cap-drop, limites ressources)
+- Tests réels prouvant l’isolation réseau
+- Gestion des secrets de manière sécurisée
 
-## 📋 Prérequis
+## 📋 PRÉREQUIS
 
 - Une machine Debian 13 (Trixie) avec accès internet
 - Droits `sudo` sur la machine
 - Connaissances de base en ligne de commande Linux
 
-## 🏗️ Architecture cible
+## 🏗️ ARCHITECHTURE CIBLE
 
-## 🔧 Déroulement du TP
+## 🔧 DÉROULEMENT DU TP
 
-### Étape 0 : Préparation de l'environnement
+### IMPORTANT
+
+- Le serveur Debian 13 doit être connecté à Internet (pour apt, Docker repo, Trivy, images).
+- Tout le TP est en copier/coller, étape par étape.
+
+### ÉTAPE 0 : PREPARATION DE L'ENVIRONNEMENT (PRÉREQUIS RÉSEAU + DÉPÔTS OFFICIELS DEBIAN 13)
 
 Avant de commencer, comprenez pourquoi ces étapes sont cruciales :
 
@@ -35,16 +40,77 @@ Avant de commencer, comprenez pourquoi ces étapes sont cruciales :
 - **Clés GPG** : garantir l'authenticité des logiciels installés
 
 ```bash
-# Vérifier la connectivité
+# Vérifie la connectivité Internet (DNS + accès)
 ping -c 2 deb.debian.org
-curl -I https://deb.debian.org
+# Attendu : réponses OK (0% packet loss)
 
-# Configurer les dépôts Debian
+# Vérifie l’accès HTTPS (utile pour dépôts / clés)
+curl -I https://deb.debian.org
+# Attendu : HTTP/2 200 ou HTTP/1.1 200 (ou 301/302 acceptable)
+
+# (Option) Vérifie que la distro est bien Debian 13 (Trixie)
+lsb_release -a
+# Attendu : Codename: trixie
+
+# Insère les dépôts officiels Debian 13 (main + contrib + non-free + non-free-firmware)
+# Note : adapte "main contrib non-free non-free-firmware" selon ta politique (ex: main uniquement).
 sudo tee /etc/apt/sources.list > /dev/null <<'EOF'
 deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
 deb http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
 deb http://security.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
 EOF
+# Attendu (cat /etc/apt/sources.list) : le fichier /etc/apt/sources.list est remplacé avec ces 3 lignes
 
-# Mettre à jour le système
-sudo apt update && sudo apt upgrade -y
+# Met à jour Debian 13 (recommandé avant d’installer Docker)
+sudo apt update
+sudo apt upgrade -y
+# Attendu : update/upgrade sans erreurs de dépôt
+```
+
+### ÉTAPE 1 : INSTALLATION DOCKER VIA DÉPÔT OFFICIEL DOCKER (https://docs.docker.com/engine/install/debian/)
+
+Pourquoi cette méthode ?
+
+- Dépôt officiel Docker (pas de version obsolete des dépôts Debian)
+- Vérification GPG (empêche les attaques de type "man-in-the-middle")
+- Activation automatique du service
+
+```bash
+# Met à jour l’index des paquets
+sudo apt update
+
+# Installe les dépendances nécessaires à l’ajout d’un dépôt HTTPS signé
+sudo apt install -y ca-certificates curl gnupg lsb-release
+
+# Crée le dossier standard pour stocker les clés GPG APT
+sudo install -m 0755 -d /etc/apt/keyrings
+
+# Télécharge et enregistre la clé officielle Docker
+curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Rend la clé lisible par APT
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# Ajoute le dépôt Docker stable correspondant à la version Debian (trixie)
+# Si le repo Docker ne supporte pas encore "trixie" dans ton contexte, remplace $(lsb_release -cs) par "bookworm".
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Recharge l’index des paquets incluant le dépôt Docker
+sudo apt update
+
+# Installe Docker Engine et ses composants
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Démarre Docker et l’active au démarrage
+sudo systemctl enable --now docker
+
+# Vérifie que Docker est actif
+sudo systemctl status docker --no-pager
+# Attendu : active (running)
+
+# Teste le bon fonctionnement de Docker
+sudo docker run --rm hello-world
+# Attendu : message “Hello from Docker!”
+```
+
+### ÉTAPE 2 : SEGMENTATION RÉSEAU (FRONTEND / BACKEND)
