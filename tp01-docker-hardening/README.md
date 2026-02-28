@@ -24,6 +24,8 @@ Déployer une architecture Web + Base de données en appliquant :
 
 ## 🏗️ ARCHITECHTURE CIBLE
 
+![Architecture tp01](architecture_tp01.png)
+
 ## 🔧 DÉROULEMENT DU TP
 
 ### IMPORTANT
