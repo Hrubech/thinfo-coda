@@ -13,3 +13,11 @@
 4. Manipuler les outils concrets (docker,k8s, trivy, ...)
 5. Rélier la technique à la réalité (vision SOC/DevSecOps)
 6. Travailler en équipe (projet de fin de session)
+
+## 📋 PLAN DETAILLE SUR 4JOURS
+
+Les 4 jours de la formation
+- Jour 1 : Architectures & Docker (fondations + hardening)
+- Jour 2 : Kubernetes (orchestration + sécurité)
+- Jour 3 : Data & Observabilité (SQL/NoSQL/Elastic)
+- Jour 4 : Projet + restitution (Projet de fin de session)
