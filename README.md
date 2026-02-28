@@ -24,12 +24,14 @@ Les 4 jours de la formation
 
 ## 🔧 PREREQUIS TECHNIQUES
 
-Ce dont vous avez besoin pour ce module :  
+Ce dont vous avez besoin pour ce module : 
+
 **Matériel**
 - PC avec droits admin
 - 8 Go RAM minimum
 - 10 Go espace disque libre
 - Connexion internet stable  
+
 **Logiciels**
 - Git (Source Control Management) : https://git-scm.com/install/
 - Vagrant (VM Management) : https://developer.hashicorp.com/vagrant/install
