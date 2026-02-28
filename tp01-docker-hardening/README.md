@@ -203,3 +203,159 @@ sudo docker build -t app-coda-web:1.0 .
 sudo docker images | grep app-coda-web
 # Attendu : app-coda-web:1.0 visible
 ```
+
+### ÉTAPE 4 : AUDIT DE SÉCURITÉ AVEC TRIVY
+
+```bash
+# Crée le dossier keyrings si nécessaire
+sudo install -m 0755 -d /etc/apt/keyrings
+
+# Télécharge la clé GPG officielle Trivy
+curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /etc/apt/keyrings/trivy.gpg
+
+# Rend la clé lisible
+sudo chmod a+r /etc/apt/keyrings/trivy.gpg
+
+# Ajoute le dépôt Trivy
+echo "deb [signed-by=/etc/apt/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
+
+# Met à jour l’index APT
+sudo apt update
+
+# Installe Trivy
+sudo apt install -y trivy
+# Attendu : trivy installé
+
+# Scanne l’image pour vulnérabilités HIGH/CRITICAL
+trivy image --severity HIGH,CRITICAL app-coda-web:1.0
+# Attendu : rapport CVE affiché (vide ou non selon versions)
+```
+
+### ÉTAPE 5 : DÉPLOIEMENT DB ISOLÉE (BACKEND UNIQUEMENT)
+
+```bash
+# Lance PostgreSQL uniquement sur le réseau backend (aucun port publié vers l’hôte)
+sudo docker run -d --name db-backend --network net-backend \
+  -e POSTGRES_PASSWORD='codaPassw0rd!' \
+  -e POSTGRES_DB='appdb' \
+  --health-cmd="pg_isready -U postgres" \
+  --health-interval=10s --health-timeout=5s --health-retries=10 \
+  postgres:16-alpine
+# Attendu : conteneur db-backend en running
+
+# Vérifie que la DB est uniquement sur net-backend
+sudo docker inspect db-backend --format '{{json .NetworkSettings.Networks}}'
+# Attendu : net-backend uniquement
+```
+
+### ÉTAPE 6 : DÉPLOIEMENT WEB DURCI (FRONTEND + RUNTIME HARDENING)
+
+```bash
+# Lance le conteneur Web avec protections runtime :
+# - read-only filesystem
+# - no-new-privileges
+# - suppression des capabilities
+# - limites CPU/RAM/PIDs
+# - tmpfs contrôlés
+sudo docker run -d --name web-app --network net-frontend \
+  -p 8080:8080 \
+  --read-only \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL \
+  --pids-limit 100 \
+  --memory="128m" \
+  --cpus="0.5" \
+  --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m \
+  --tmpfs /var/run:rw,nosuid,nodev,size=16m \
+  app-coda-web:1.0
+# Attendu : conteneur web-app en running
+
+# Vérifie l’état du conteneur
+sudo docker ps | grep web-app
+# Attendu : web-app visible
+
+# Test HTTP local
+curl -I http://localhost:8080
+# Attendu : HTTP 200 OK
+```
+
+### ÉTAPE 7 : TESTS DE CONFORMITÉ
+
+```bash
+# Vérifie que le processus tourne en non-root
+sudo docker exec web-app whoami
+# Attendu : appuser
+
+# Test écriture sur FS root (doit échouer car read-only)
+sudo docker exec web-app sh -c "echo test > /root/should_fail.txt"
+# Attendu : erreur permission ou read-only filesystem
+
+# Test écriture sur /tmp (autorisé via tmpfs)
+sudo docker exec web-app sh -c "echo ok > /tmp/ok.txt && cat /tmp/ok.txt"
+# Attendu : ok
+
+# Vérifie limites CPU/RAM
+sudo docker stats web-app --no-stream
+# Attendu : RAM ~128MiB max, CPU limité
+```
+
+### ÉTAPE 8 : TEST RÉEL D’ISOLATION RÉSEAU (PREUVE FRONTEND ≠ BACKEND)
+
+```bash
+# Depuis net-frontend : tentative d’accès DB (doit échouer)
+sudo docker run --rm --network net-frontend alpine:3.20 sh -c \
+"apk add --no-cache postgresql-client >/dev/null && pg_isready -h db-backend -p 5432 -U postgres"
+# Attendu : échec (host introuvable ou timeout)
+
+# Depuis net-backend : accès DB (doit réussir)
+sudo docker run --rm --network net-backend alpine:3.20 sh -c \
+"apk add --no-cache postgresql-client >/dev/null && pg_isready -h db-backend -p 5432 -U postgres"
+# Attendu : accepting connections
+```
+
+### ÉTAPE 9 : OPTION — ARCHITECTURE RÉELLE (WEB CONNECTÉ AU BACKEND)
+
+```bash
+# Connecte le web au backend (pont contrôlé)
+sudo docker network connect net-backend web-app
+# Attendu : web-app attaché aux deux réseaux
+
+# Vérifie les réseaux du conteneur web
+sudo docker inspect web-app --format '{{json .NetworkSettings.Networks}}'
+# Attendu : net-frontend + net-backend
+
+# Test DB depuis web-app (doit réussir maintenant)
+sudo docker exec web-app sh -c \
+"apk add --no-cache postgresql-client >/dev/null && pg_isready -h db-backend -p 5432 -U postgres"
+# Attendu : accepting connections
+```
+
+### ÉTAPE 10 : NETTOYAGE
+
+```bash
+# Supprime les conteneurs
+sudo docker rm -f web-app db-backend
+# Attendu : conteneurs supprimés
+
+# Supprime les réseaux
+sudo docker network rm net-frontend net-backend
+# Attendu : réseaux supprimés
+
+# Supprime l’image
+sudo docker rmi app-coda-web:1.0
+# Attendu : image supprimée
+```
+
+### CHECKLIST FINALE
+
+```bash
+# Docker installé via dépôt officiel + hello-world OK
+# Réseaux segmentés créés
+# Image non-root build OK
+# Scan Trivy exécuté
+# DB isolée sur backend uniquement
+# Web durci avec protections runtime
+# Tests read-only / tmpfs / non-root validés
+# Isolation réseau prouvée
+# (Option) Architecture réelle testée
+```
