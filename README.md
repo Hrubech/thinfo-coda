@@ -21,3 +21,17 @@ Les 4 jours de la formation
 - Jour 2 : Kubernetes (orchestration + sécurité)
 - Jour 3 : Data & Observabilité (SQL/NoSQL/Elastic)
 - Jour 4 : Projet + restitution (Projet de fin de session)
+
+## 🔧 PREREQUIS TECHNIQUES
+
+Ce dont vous avez besoin pour ce module :
+**Matériel**
+- PC avec droits admin
+- 8 Go RAM minimum
+- 10 Go espace disque libre
+- Connexion internet stable
+**Logiciels**
+- Git (Source Control Management) : https://git-scm.com/install/
+- Vagrant (VM Management) : https://developer.hashicorp.com/vagrant/install
+- VirtualBox (Virtualization software) : https://www.virtualbox.org/wiki/Downloads
+- Termius (Modern SSH Client) : https://termius.com/download/windows
