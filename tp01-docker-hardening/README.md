@@ -230,7 +230,7 @@ sudo apt install -y trivy
 # Attendu : trivy installé
 
 # Scanne l’image pour vulnérabilités HIGH/CRITICAL
-trivy image --severity HIGH,CRITICAL app-coda-web:1.0
+sudo trivy image --severity HIGH,CRITICAL app-coda-web:1.0
 # Attendu : rapport CVE affiché (vide ou non selon versions)
 ```
 
