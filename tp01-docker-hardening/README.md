@@ -131,3 +131,75 @@ sudo docker network create --driver bridge net-backend
 sudo docker network ls | grep -E "net-frontend|net-backend"
 # Attendu : les deux réseaux sont listés
 ```
+
+### ÉTAPE 3 : CONSTRUCTION D’UNE IMAGE WEB DURCIE (NGINX NON-ROOT SUR 8080)
+
+Pourquoi ce Dockerfile est amélioré ?
+
+- ✅ Non-root : l'utilisateur appuser limite les dégâts en cas de compromission
+- ✅ Permissions strictes : seul ce qui est nécessaire est accessible
+
+```bash
+# Crée le dossier de travail et s’y place
+mkdir -p ~/tp01-hardening && cd ~/tp01-hardening
+
+# Crée la page HTML servie par Nginx
+cat > index.html <<'EOF'
+<!doctype html>
+<html lang="fr">
+  <head><meta charset="utf-8"><title>Service sécurisé - CODA</title></head>
+  <body>
+    <h1>Service Sécurisé - CODA Orléans</h1>
+    <p>TP01 : non-root, segmentation, scan Trivy, runtime hardening.</p>
+  </body>
+</html>
+EOF
+# Attendu : le fichier index.html existe dans ~/tp01-hardening
+
+# Configure Nginx pour écouter sur 8080 (port non privilégié compatible non-root)
+cat > default.conf <<'EOF'
+server {
+    listen       8080;
+    server_name  localhost;
+
+    access_log  /dev/stdout;
+    error_log   /dev/stderr warn;
+
+    location / {
+        root   /usr/share/nginx/html;
+        index  index.html;
+    }
+}
+EOF
+# Attendu : le fichier default.conf existe dans ~/tp01-hardening
+
+# Crée un Dockerfile avec :
+# - base alpine (image légère)
+# - utilisateur non-root
+# - permissions adaptées aux répertoires nécessaires
+cat > Dockerfile <<'EOF'
+FROM nginx:alpine
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+RUN mkdir -p /var/cache/nginx /var/run /var/log/nginx && \
+    chown -R appuser:appgroup \
+      /var/cache/nginx /var/run /var/log/nginx \
+      /usr/share/nginx/html /etc/nginx/conf.d
+
+COPY default.conf /etc/nginx/conf.d/default.conf
+COPY index.html /usr/share/nginx/html/index.html
+
+USER appuser
+EXPOSE 8080
+EOF
+# Attendu : le fichier Dockerfile existe dans ~/tp01-hardening
+
+# Construit l’image durcie
+sudo docker build -t app-coda-web:1.0 .
+# Attendu : build terminé sans erreur
+
+# Vérifie que l’image existe
+sudo docker images | grep app-coda-web
+# Attendu : app-coda-web:1.0 visible
+```
