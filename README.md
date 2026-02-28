@@ -48,7 +48,7 @@ $  vagrant ssh
 
 ## 📋 TRAVAUX PRATIQUES
 
-- TP01 : Déploiement & durcissement d'une architecture conteneurisée (Docker) [TP01](tp01-docker-hardening)
-- TP02 : Kubernetes (Déploiement, sécurité de base, tests) [TP02](tp02-kubernetes)
-- TP03 : Data & Observabilité (SQL/NoSQL/Elastic) [TP03](tp03-projet)
-- TP04 : Projet + restitution (Projet de fin de session) [TP04](tp03-projet)
+- [TP01](tp01-docker-hardening) : Déploiement & durcissement d'une architecture conteneurisée (Docker)
+- [TP02](tp02-kubernetes) : Kubernetes (Déploiement, sécurité de base, tests)
+- [TP03](tp03-projet) : Data & Observabilité (SQL/NoSQL/Elastic)
+- [TP03](tp03-projet) : Projet + restitution (Projet de fin de session)
