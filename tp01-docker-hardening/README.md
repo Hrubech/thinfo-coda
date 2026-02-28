@@ -216,7 +216,8 @@ curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg -
 # Rend la clé lisible
 sudo chmod a+r /etc/apt/keyrings/trivy.gpg
 
-# Ajoute le dépôt Trivy
+# Ajoute le dépôt Trivy (https://trivy.dev/docs/latest/getting-started/installation/#debianubuntu-official)
+# Si le repo Trivie ne supporte pas encore "trixie", remplace $(lsb_release -cs) par "bookworm".
 echo "deb [signed-by=/etc/apt/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
 
 # Met à jour l’index APT
