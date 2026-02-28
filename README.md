@@ -1,7 +1,7 @@
 # MODULE RAR — APPROFONDISSEMENT DES ARCHITECTURES, SYSTEMES ET RESEAUX
 
-**Objectif :** Déployer une architecture Web + DB sécurisée en appliquant les bonnes pratiques DevSecOps.  
-**Environnement cible :** 4 jours pour maîtriser la sécurité des architectures modernes 
+**Objectif :** Déployer une architecture Web + DB sécurisée en appliquant les bonnes pratiques DevSecOps  
+**Environnement cible :** 4 jours pour maîtriser la sécurité des architectures modernes  
 **Niveau :** Master 1 Cybersécurité - CODA Orléans
 
 ## 🎯 OBJECTIF DU MODULE
