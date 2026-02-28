@@ -14,7 +14,7 @@
 5. Rélier la technique à la réalité (vision SOC/DevSecOps)
 6. Travailler en équipe (projet de fin de session)
 
-## 📋 PLAN DETAILLE SUR 4JOURS
+## 📋 PLAN DETAILLE SUR 4 JOURS
 
 Les 4 jours de la formation
 - Jour 1 : Architectures & Docker (fondations + hardening)
@@ -24,12 +24,12 @@ Les 4 jours de la formation
 
 ## 🔧 PREREQUIS TECHNIQUES
 
-Ce dont vous avez besoin pour ce module :
+Ce dont vous avez besoin pour ce module :  
 **Matériel**
 - PC avec droits admin
 - 8 Go RAM minimum
 - 10 Go espace disque libre
-- Connexion internet stable
+- Connexion internet stable  
 **Logiciels**
 - Git (Source Control Management) : https://git-scm.com/install/
 - Vagrant (VM Management) : https://developer.hashicorp.com/vagrant/install
