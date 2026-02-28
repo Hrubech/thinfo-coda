@@ -36,4 +36,12 @@ Ce dont vous avez besoin pour ce module :
 - Git (Source Control Management) : https://git-scm.com/install/
 - Vagrant (VM Management) : https://developer.hashicorp.com/vagrant/install
 - VirtualBox (Virtualization software) : https://www.virtualbox.org/wiki/Downloads
-- Termius (Modern SSH Client) : https://termius.com/download/windows
+- Termius (Modern SSH Client) : https://termius.com/download/windows  
+
+**Mise en place de l'environnement de travail**
+```bash
+$  git clone https://github.com/Hrubech/thinfo-coda.git
+$  cd thinfo-coda
+$  vagrant up
+$  vagrant ssh
+```
