@@ -260,6 +260,8 @@ sudo docker inspect db-backend --format '{{json .NetworkSettings.Networks}}'
 # - suppression des capabilities
 # - limites CPU/RAM/PIDs
 # - tmpfs contrôlés
+# Lancement avec tmpfs obligatoires et gestion des permissions (mode=1777)
+# Le dossier /run est indispensable pour le fichier nginx.pid sur Alpine
 sudo docker run -d --name web-app --network net-frontend \
   -p 8080:8080 \
   --read-only \
@@ -268,8 +270,10 @@ sudo docker run -d --name web-app --network net-frontend \
   --pids-limit 100 \
   --memory="128m" \
   --cpus="0.5" \
-  --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m \
-  --tmpfs /var/run:rw,nosuid,nodev,size=16m \
+  --tmpfs /tmp:rw,nosuid,nodev,noexec,mode=1777 \
+  --tmpfs /run:rw,nosuid,nodev,mode=1777 \
+  --tmpfs /var/cache/nginx:rw,nosuid,nodev,mode=1777 \
+  --tmpfs /var/log/nginx:rw,nosuid,nodev,mode=1777 \
   app-coda-web:1.0
 # Attendu : conteneur web-app en running
 
