@@ -164,40 +164,20 @@ spec:
       containers:
       - name: backend
         image: hashicorp/http-echo:1.0
-        args:
-          - "-text=Backend OK (CODA RAR)"
-          - "-listen=:8080"
+        args: ["-text=Backend OK (CODA RAR)", "-listen=:8080"]
         ports:
           - containerPort: 8080
-        # Sécurité simple : non-root + pas d'escalade + FS read-only + drop capabilities
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
+          readOnlyRootFilesystem: true # OK pour cette image (pas d'écriture disque)
           capabilities:
             drop: ["ALL"]
-        # Ressources : éviter qu’un pod consomme tout
         resources:
-          requests:
-            cpu: "50m"
-            memory: "64Mi"
           limits:
             cpu: "200m"
             memory: "128Mi"
-        # Probes : Kubernetes vérifie l’état du conteneur
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 8080
-          initialDelaySeconds: 2
-          periodSeconds: 5
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 8080
-          initialDelaySeconds: 10
-          periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -208,9 +188,7 @@ spec:
   selector:
     app: backend
   ports:
-    - name: http
-      port: 8080
-      targetPort: 8080
+    - port: 8080
   type: ClusterIP
 EOF
 # Attendu : fichier backend.yaml créé
@@ -219,19 +197,50 @@ EOF
 kubectl apply -f backend.yaml
 # Attendu : deployment + service créés
 
-# Vérifie les pods
-kubectl -n coda-rar get pods -o wide
-# Attendu : 2 pods backend Running
+# Vérifier l'état du déploiement
+kubectl get deployment -n coda-rar
 
-# Vérifie le service
-kubectl -n coda-rar get svc
-# Attendu : backend-svc en ClusterIP
+# Vérifier que les Pods sont bien lancés
+kubectl get pods -n coda-rar -l app=backend
+
+# Voir le service et son adresse IP interne
+kubectl get svc -n coda-rar backend-svc
+
+#Explication architecture
+
+[ UTILISATEUR ]
+      |
+      | (Requête HTTP : http://coda-rar.local)
+      v
+ [ INGRESS ] -------------------- (Routage Couche 7 : Nom d'hôte/Path)
+      |
+      v
+ [ SERVICE ] -------------------- (IP Virtuelle Stable : ClusterIP)
+      |
+      | (Load Balancing Interne)
+      v
+============================================================
+|  [ DÉPLOIEMENT ]  <-- (Gère la stratégie & les mises à jour)
+|         |
+|         v
+|  [ REPLICA SET ]  <-- (Gère le nombre de copies : 2)
+|         |
+|    ------------
+|    |          |
+|    v          v
+| [ POD 1 ]  [ POD 2 ] <-- (Conteneurs avec SecurityContext)
+============================================================
+      (Isolation via Namespace : coda-rar)
 ```
 
 ### ÉTAPE 7 : DÉPLOYER LE FRONTEND (NGINX DEMO) + SERVICE
 
 ```bash
 # Crée un fichier frontend.yaml (Deployment + Service)
+# Note : Nginx a besoin d'écrire dans /var/cache/nginx même en mode restreint.
+# On utilise un volume "emptyDir" pour simuler le tmpfs du TP01.
+
+# On déploie une application qui répond "FRONTEND-OK" sur le port 8080
 cat > frontend.yaml <<'EOF'
 apiVersion: apps/v1
 kind: Deployment
@@ -250,35 +259,19 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: nginxdemos/hello:plain-text
+        image: hashicorp/http-echo
+        args:
+        - "-text=FRONTEND-OK (CODA-RAR)"
+        - "-listen=:8080"
         ports:
-          - containerPort: 80
+        - containerPort: 8080
         securityContext:
           runAsNonRoot: true
-          runAsUser: 101
+          runAsUser: 1000
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
-        resources:
-          requests:
-            cpu: "50m"
-            memory: "64Mi"
-          limits:
-            cpu: "200m"
-            memory: "128Mi"
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 80
-          initialDelaySeconds: 2
-          periodSeconds: 5
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 80
-          initialDelaySeconds: 10
-          periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -289,10 +282,9 @@ spec:
   selector:
     app: frontend
   ports:
-    - name: http
-      port: 80
-      targetPort: 80
-  type: ClusterIP
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
 EOF
 # Attendu : fichier frontend.yaml créé
 
@@ -300,37 +292,39 @@ EOF
 kubectl apply -f frontend.yaml
 # Attendu : deployment + service créés
 
-# Vérifie
-kubectl -n coda-rar get pods
-kubectl -n coda-rar get svc
-# Attendu : frontend pods Running + frontend-svc ClusterIP
+# Vérifier que les pods sont Running
+kubectl get pods -n coda-rar -l app=frontend
+
+# Tester en interne (doit répondre "FRONTEND-OK")
+sudo kubectl run --rm -i --tty -n coda-rar debug-echo --image=alpine -- sh -c "apk add --no-cache curl >/dev/null && curl http://frontend-svc"
+
+# Vérifier que les 2 réplicas sont bien "Ready" (Disponibilité)
+kubectl get deployment -n coda-rar frontend
+# Attendu : READY 2/2
+
+# Lister les Pods et vérifier leur statut (Stabilité)
+kubectl get pods -n coda-rar -l app=frontend
+# Attendu : STATUS "Running" (Si "CrashLoopBackOff", vérifiez les volumes tmpfs)
+
+# Vérifier que le durcissement Read-Only est bien actif (Sécurité)
+kubectl get pod -n coda-rar -l app=frontend -o jsonpath='{.items[0].spec.containers[0].securityContext.readOnlyRootFilesystem}{"\n"}'
+# Attendu : true
+
+# Vérifier que les volumes vides (emptyDir) sont bien montés (Permissions)
+# Cela permet à Nginx d'écrire dans /var/cache/nginx malgré le mode Read-Only.
+kubectl describe pod -n coda-rar -l app=frontend | grep -A 5 "Mounts:"
+# Attendu : /var/cache/nginx et /var/run listés
+
+# Vérifier l'existence du service associé (Réseau)
+kubectl get svc -n coda-rar frontend-svc
+# Attendu : TYPE ClusterIP avec une adresse IP interne affectée
 ```
 
-### ÉTAPE 8 : TESTS INTERNES (CLUSTER) : PORT-FORWARD + CURL
+### ÉTAPE 8 : EXPOSITION VIA INGRESS
 
 ```bash
-# Ouvre un tunnel local vers le service backend (port 18080 local)
-kubectl -n coda-rar port-forward svc/backend-svc 18080:8080
-# Attendu : “Forwarding from 127.0.0.1:18080 …”
-# (LAISSE CE TERMINAL OUVERT)
-
-# Dans un 2e terminal : teste le backend
-curl -s http://127.0.0.1:18080
-# Attendu : “Backend OK (CODA RAR)”
-
-# Stoppe le port-forward (CTRL+C) quand terminé
-# Attendu : retour au prompt
-```
-
-### ÉTAPE 9 : EXPOSER EN HTTP AVEC INGRESS (ACCÈS “COMME EN VRAI”)
-
-```bash
-# Ajoute une entrée DNS locale sur la machine (Linux) pour pointer vers localhost
-# (On simule un nom de domaine)
 echo "127.0.0.1 coda-rar.local" | sudo tee -a /etc/hosts
-# Attendu : la ligne est ajoutée
 
-# Crée un Ingress pour le frontend
 cat > ingress.yaml <<'EOF'
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -351,78 +345,18 @@ spec:
             port:
               number: 80
 EOF
-# Attendu : fichier ingress.yaml créé
 
-# Applique l’ingress
 kubectl apply -f ingress.yaml
-# Attendu : ingress créé
 
-# Vérifie
-kubectl -n coda-rar get ingress
-# Attendu : host coda-rar.local visible
-
-# Teste via le host (ingress)
+# Test final
 curl -s http://coda-rar.local | head
-# Attendu : réponse texte de nginxdemos/hello
 ```
 
-### ÉTAPE 10 : CONFIGURATION : CONFIGMAP + SECRET (CONCEPTS + CAS CONCRET)
+### ÉTAPE 9 : SÉCURITÉ RBAC (LECTURE SEULE)
 
 ```bash
-# Crée un ConfigMap (config non sensible)
-kubectl -n coda-rar create configmap app-config --from-literal=ENV=dev --from-literal=APP_NAME="CODA-RAR"
-# Attendu : configmap créé
-
-# Crée un Secret (donnée sensible) — exemple token
-kubectl -n coda-rar create secret generic app-secret --from-literal=API_TOKEN="coda-token-123!"
-# Attendu : secret créé
-
-# Vérifie la présence
-kubectl -n coda-rar get configmap app-config -o yaml | head -n 30
-# Attendu : clés ENV / APP_NAME visibles
-
-kubectl -n coda-rar get secret app-secret -o yaml | head -n 30
-# Attendu : data en base64 (pas en clair)
-
-# Injecte ConfigMap + Secret dans le backend (en variables d’environnement)
-kubectl -n coda-rar set env deployment/backend --from=configmap/app-config
-kubectl -n coda-rar set env deployment/backend --from=secret/app-secret
-# Attendu : deployment mis à jour (rolling update)
-
-# Vérifie que de nouveaux pods ont été recréés
-kubectl -n coda-rar get pods -l app=backend
-# Attendu : pods redémarrés (nouveaux IDs)
-
-# Affiche les variables d’environnement dans un pod backend
-POD_BACKEND=$(kubectl -n coda-rar get pod -l app=backend -o jsonpath='{.items[0].metadata.name}')
-kubectl -n coda-rar exec -it "$POD_BACKEND" -- sh -c 'env | grep -E "ENV=|APP_NAME=|API_TOKEN="'
-# Attendu : variables présentes (attention : API_TOKEN affiché => discussion sur la gestion des secrets)
-```
-
-### ÉTAPE 11 : OBSERVABILITÉ SIMPLE : LOGS, DESCRIBE, EVENTS
-
-```bash
-# Affiche les logs du backend
-kubectl -n coda-rar logs -l app=backend --tail=50
-# Attendu : logs du serveur http-echo
-
-# Décrit le deployment (utile pour debug)
-kubectl -n coda-rar describe deployment backend | head -n 60
-# Attendu : image, replicas, events, probes, resources
-
-# Affiche les events du namespace (diagnostic)
-kubectl -n coda-rar get events --sort-by=.metadata.creationTimestamp | tail -n 20
-# Attendu : événements récents (pull image, started container, etc.)
-```
-
-### ÉTAPE 12 : RBAC SIMPLE : CRÉER UN ACCÈS "LECTURE SEULE" AU NAMESPACE
-
-```bash
-# Crée un ServiceAccount “viewer-sa”
 kubectl -n coda-rar create serviceaccount viewer-sa
-# Attendu : serviceaccount créé
 
-# Crée un Role lecture seule (pods, services, ingress)
 cat > rbac-viewer.yaml <<'EOF'
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -431,93 +365,25 @@ metadata:
   namespace: coda-rar
 rules:
 - apiGroups: [""]
-  resources: ["pods","services","configmaps"]
-  verbs: ["get","list","watch"]
-- apiGroups: ["networking.k8s.io"]
-  resources: ["ingresses"]
-  verbs: ["get","list","watch"]
+  resources: ["pods", "services", "configmaps"]
+  verbs: ["get", "list", "watch"]
 EOF
-# Attendu : fichier rbac-viewer.yaml créé
 
-# Applique le Role
 kubectl apply -f rbac-viewer.yaml
-# Attendu : role créé
 
-# Lie le Role au ServiceAccount
-kubectl -n coda-rar create rolebinding viewer-binding --role=viewer-role --serviceaccount=coda-rar:viewer-sa
-# Attendu : rolebinding créé
+#lie le rôle viewer-role au compte de service viewer-sa au sein du namespace coda-rar, autorisant ainsi ce compte à effectuer les actions définies dans le rôle (lecture seule)
 
-# Test “can-i” : vérifie ce que viewer-sa a le droit de faire
+kubectl -n coda-rar create rolebinding viewer-binding \
+  --role=viewer-role \
+  --serviceaccount=coda-rar:viewer-sa
+
+# Vérification des droits
 kubectl -n coda-rar auth can-i list pods --as=system:serviceaccount:coda-rar:viewer-sa
 # Attendu : yes
-
-kubectl -n coda-rar auth can-i delete pods --as=system:serviceaccount:coda-rar:viewer-sa
-# Attendu : no
 ```
 
-### ÉTAPE 13 : COMPORTEMENT KUBERNETES : AUTO-HEALING + SCALING + ROLLING UPDATE
+### ÉTAPE 10 : NETTOYAGE
 
 ```bash
-# Supprime un pod frontend manuellement (K8s doit le recréer)
-POD_FRONT=$(kubectl -n coda-rar get pod -l app=frontend -o jsonpath='{.items[0].metadata.name}')
-kubectl -n coda-rar delete pod "$POD_FRONT"
-# Attendu : pod supprimé puis recréé automatiquement
-
-# Observe la recréation
-kubectl -n coda-rar get pods -l app=frontend -w
-# Attendu : nouveau pod apparaît (CTRL+C quand OK)
-
-# Scale : passe frontend à 4 replicas
-kubectl -n coda-rar scale deployment/frontend --replicas=4
-# Attendu : 4 pods frontend
-
-kubectl -n coda-rar get pods -l app=frontend
-# Attendu : 4 pods Running
-
-# Rolling update : change l’image frontend (déclenche remplacement progressif)
-kubectl -n coda-rar set image deployment/frontend frontend=nginxdemos/hello:plain-text
-# Attendu : rollout (peut être instant, même image => pas de changement réel, mais commande pédagogique)
-
-# Vérifie l’état du rollout
-kubectl -n coda-rar rollout status deployment/frontend
-# Attendu : “successfully rolled out”
-```
-
-### ÉTAPE 14 : MINI-EXERCICES POUR OCCUPER ET RENFORCER (À FAIRE PAR BINÔMES)
-
-```bash
-# Exercice A (10–15 min) : changer la page / message backend
-# - modifier args du backend (texte), puis vérifier avec port-forward
-
-# Exercice B (15–20 min) : durcir encore plus
-# - ajouter readOnlyRootFilesystem sur frontend si possible
-# - vérifier que le pod démarre toujours
-# (Si ça casse, expliquer pourquoi : l’app a parfois besoin d’écrire quelque part.)
-
-# Exercice C (15–20 min) : requests/limits
-# - mettre un limit trop bas (ex: memory=32Mi) et observer OOMKilled
-# - puis corriger à 128Mi et vérifier stabilité
-
-# Exercice D (15–20 min) : probes
-# - casser readinessProbe (mauvais port) et observer que le pod est “Not Ready”
-# - corriger et vérifier “Ready”
-
-# Exercice E (10–15 min) : RBAC
-# - étendre viewer-role pour autoriser “get deployments”
-# - tester à nouveau “kubectl auth can-i …”
-```
-
-### ÉTAPE 15 : NETTOYAGE (FIN DE TP)
-
-```bash
-# Supprime toutes les ressources du namespace
-kubectl delete namespace coda-rar
-# Attendu : namespace supprimé + ressources supprimées
-
-# Supprime le cluster kind
-kind delete cluster --name coda-rar
-# Attendu : cluster supprimé
-
-# (Option) retire l’entrée /etc/hosts (si besoin)
-# sudo sed -i '/coda-rar\.local/d' /etc/hosts
+# kind delete cluster --name coda-rar
 ```
