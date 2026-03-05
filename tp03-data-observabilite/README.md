@@ -259,7 +259,27 @@ docker logs filebeat --tail 10
 docker exec filebeat filebeat test output
 ```
 
-### ÉTAPE 5 : TESTS DE CONNECTIVITE ET ISOLATION
+### ÉTAPE 5 : METRIQUES AVEC CADVISOR
+
+```bash
+# Lancer cAdvisor pour collecter les métriques des conteneurs
+docker run -d --name cadvisor \
+  --network elastic \
+  -p 8080:8080 \
+  -v /:/rootfs:ro \
+  -v /var/run:/var/run:ro \
+  -v /sys:/sys:ro \
+  -v /var/lib/docker/:/var/lib/docker:ro \
+  -v /dev/disk/:/dev/disk:ro \
+  --privileged \
+  --device=/dev/kmsg \
+  gcr.io/cadvisor/cadvisor:latest
+
+# Vérifier
+curl -s http://localhost:8080/metrics | head -5
+```
+
+### ÉTAPE 6 : TESTS DE CONNECTIVITE ET ISOLATION
 
 ```bash
 # Script de test complet
@@ -324,7 +344,7 @@ docker run --rm --network backend-app alpine:3.20 sh -c "
 "
 ```
 
-### ÉTAPE 6 : REQUETES ET CORRELATION
+### ÉTAPE 7 : REQUETES ET CORRELATION
 
 ```bash
 # Rechercher les échecs de connexion
@@ -372,7 +392,7 @@ curl -s "localhost:9200/logs-app/_search?pretty" -H 'Content-Type: application/j
 }' | grep -A 5 "message"
 ```
 
-### ÉTAPE 7 : NETTOYAGE
+### ÉTAPE 8 : NETTOYAGE
 
 ```bash
 # Arrêter tous les conteneurs
