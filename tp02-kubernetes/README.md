@@ -1,6 +1,6 @@
 # TP02 — KUBERNETES : DÉPLOIEMENT, SÉCURITÉ DE BASE, TESTS
 
-**Niveau :** Master 1 Cybersécurité — CODA Orléans  
+**Niveau :** Master Cybersécurité — CODA Orléans  
 **Environnement cible :** Debian 13 (Trixie) à jour — Machine connectée à Internet  
 **Durée visée :** 1 journée (ou gros bloc) — beaucoup de manip, peu de théorie lourde
 
