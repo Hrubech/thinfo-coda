@@ -1,7 +1,7 @@
 # TP03 — DATA ET OBSERVABILITE
 
 **Objectif :** Déployer des bases de données sécurisées (PostgreSQL, MongoDB) et une stack d'observabilité (Elasticsearch, Kibana, Filebeat) avec toutes les bonnes pratiques de hardening.  
-**Niveau :** Master 1 Cybersécurité - CODA Orléans  
+**Niveau :** Master Cybersécurité - CODA Orléans  
 **Durée estimée :** 3h
 
 ## 🎯 OBJECTIF GLOBAL DU TP
