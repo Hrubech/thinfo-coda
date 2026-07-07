@@ -1,7 +1,7 @@
 # TP03 — PROJET FINAL DE SESSION
 
 **Objectif :** Déploiement d’une application via GitLab CI/CD sur Kubernetes    
-**Niveau :** Master 1 Cybersécurité - CODA Orléans  
+**Niveau :** Master Cybersécurité - CODA Orléans  
 **Durée visée :** 1 journée — travail en équipe
 
 ## 🎯 OBJECTIF CENTRAL
