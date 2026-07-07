@@ -2,7 +2,7 @@
     
 **Objectif :** Déployer une architecture Web + DB sécurisée en appliquant les bonnes pratiques DevSecOps.  
 **Environnement cible :** Debian 13 (Trixie) à jour  
-**Niveau :** Master 1 Cybersécurité - CODA Orléans  
+**Niveau :** Master Cybersécurité - CODA Orléans  
 **Durée estimée :** 2h30
 
 ## 🎯 OBJECTIF GLOBAL DU TP
